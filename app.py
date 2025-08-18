@@ -38,42 +38,44 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 logging.basicConfig(level=logging.INFO)
 
 @app.post("/api/")
-async def handle_upload(
-    request: Request,
-    files: List[UploadFile] = File(..., alias="files")
-):
-    # Create a unique request folder inside /tmp
+async def handle_upload(request: Request):
+    # Create unique folder for this request
     request_id = str(uuid.uuid4())
     request_folder = os.path.join(UPLOAD_DIR, request_id)
     os.makedirs(request_folder, exist_ok=True)
 
     saved_files = {}
-    has_question_file = False
     questions_file_path = None
+    has_question_file = False
 
-    for file in files:
-        filename = file.filename
-        file_path = os.path.join(request_folder, filename)
+    # Read the multipart form
+    form = await request.form()
 
-        # Save file to /tmp/<request_id>/
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+    # Loop through everything user sent
+    for key, val in form.items():
+        if hasattr(val, "filename") and val.filename:  # It's a file
+            filename = val.filename
+            file_path = os.path.join(request_folder, filename)
 
-        logging.info(f"Saved file: {filename} -> {file_path}")
-        saved_files[filename] = file_path
+            # Save file to disk
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(val.file, buffer)
 
-        if filename.lower() == "questions.txt":
-            has_question_file = True
-            questions_file_path = file_path
+            logging.info(f"Saved file: {filename} -> {file_path}")
+            saved_files[filename] = file_path
+
+            # Identify questions file
+            if filename.lower().endswith(".txt") and filename.lower() == "questions.txt":
+                has_question_file = True
+                questions_file_path = file_path
 
     if not has_question_file:
         raise HTTPException(status_code=400, detail="Missing required file: questions.txt")
 
-    # Read content of questions.txt - FIXED: use correct path
+    # Read question content
     with open(questions_file_path, "r") as f:
         question_content = f.read()
     print("Questions file read successfully")
-
     # Improved detection prompt with simpler structure
     detect_prompt = f"""
     Analyze this question and return a JSON object with these exact keys:
