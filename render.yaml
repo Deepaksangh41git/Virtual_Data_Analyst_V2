@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: data-analyst-agent
+    env: docker
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /healthz
+    # If you need persistent storage (most don't):
+    # disk:
+    #   name: data
+    #   mountPath: /data
+    #   sizeGB: 2
