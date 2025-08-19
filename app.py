@@ -54,7 +54,9 @@ async def handle_upload(request: Request):
         
         # Process each item in the form
         for key, val in form.items():
-            # Check if it's a file upload
+            print(f"Form key: {key}, Val type: {type(val)}")  # Debug log
+            
+            # Check if it's a single file upload
             if hasattr(val, "filename") and val.filename:
                 filename = val.filename
                 file_path = os.path.join(request_folder, filename)
@@ -71,6 +73,25 @@ async def handle_upload(request: Request):
                 if filename.lower() == "questions.txt":
                     has_question_file = True
                     questions_file_path = file_path
+        
+        # Also check if 'files' key contains multiple files
+        if 'files' in form:
+            files_val = form.getlist('files')  # Get all files with 'files' key
+            for file_item in files_val:
+                if hasattr(file_item, "filename") and file_item.filename:
+                    filename = file_item.filename
+                    file_path = os.path.join(request_folder, filename)
+                    
+                    content = await file_item.read()
+                    with open(file_path, "wb") as buffer:
+                        buffer.write(content)
+                    
+                    logging.info(f"Saved file: {filename} -> {file_path}")
+                    saved_files[filename] = file_path
+                    
+                    if filename.lower() == "questions.txt":
+                        has_question_file = True
+                        questions_file_path = file_path
         
         # Validate that questions.txt was uploaded
         if not has_question_file:
@@ -91,8 +112,7 @@ async def handle_upload(request: Request):
         raise  # Re-raise HTTP exceptions
     except Exception as e:
         logging.error(f"Error processing upload: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")    # Improved detection prompt with simpler structure
-    detect_prompt = f"""
+        raise HTTPException(status_code=500, detail="Internal server error")    detect_prompt = f"""
     Analyze this question and return a JSON object with these exact keys:
 
     - "scraping": "yes" or "no"  
