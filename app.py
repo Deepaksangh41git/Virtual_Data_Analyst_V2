@@ -53,45 +53,72 @@ async def handle_upload(request: Request):
         questions_file_path = None
         
         # Process each item in the form
+        processed_files = set()  # Track processed files to avoid duplicates
+        
         for key, val in form.items():
             print(f"Form key: {key}, Val type: {type(val)}")  # Debug log
             
             # Check if it's a single file upload
             if hasattr(val, "filename") and val.filename:
                 filename = val.filename
+                
+                # Skip if we've already processed this file
+                if filename in processed_files:
+                    print(f"Skipping duplicate file: {filename}")
+                    continue
+                    
                 file_path = os.path.join(request_folder, filename)
                 
                 # Read file content and save to disk
                 content = await val.read()
+                print(f"File {filename} content length: {len(content)}")  # Debug file size
+                
                 with open(file_path, "wb") as buffer:
                     buffer.write(content)
                 
                 logging.info(f"Saved file: {filename} -> {file_path}")
                 saved_files[filename] = file_path
+                processed_files.add(filename)  # Mark as processed
                 
                 # Check if this is the questions file
                 if filename.lower() == "questions.txt":
                     has_question_file = True
                     questions_file_path = file_path
+                    print(f"Found questions.txt at: {file_path}")
         
-        # Also check if 'files' key contains multiple files
+        # Also check if 'files' key contains multiple files (only if we haven't processed them individually)
         if 'files' in form:
             files_val = form.getlist('files')  # Get all files with 'files' key
+            print(f"Found {len(files_val)} files in 'files' key")
+            
             for file_item in files_val:
                 if hasattr(file_item, "filename") and file_item.filename:
                     filename = file_item.filename
+                    
+                    # Skip if we've already processed this file
+                    if filename in processed_files:
+                        print(f"Skipping duplicate file: {filename}")
+                        continue
+                        
                     file_path = os.path.join(request_folder, filename)
                     
                     content = await file_item.read()
+                    print(f"File {filename} content length: {len(content)}")  # Debug file size
+                    
                     with open(file_path, "wb") as buffer:
                         buffer.write(content)
                     
                     logging.info(f"Saved file: {filename} -> {file_path}")
                     saved_files[filename] = file_path
+                    processed_files.add(filename)  # Mark as processed
                     
                     if filename.lower() == "questions.txt":
                         has_question_file = True
                         questions_file_path = file_path
+                        print(f"Found questions.txt at: {file_path}")
+        
+        print(f"All saved files: {list(saved_files.keys())}")
+        print(f"Has questions file: {has_question_file}")
         
         # Validate that questions.txt was uploaded
         if not has_question_file:
@@ -167,7 +194,7 @@ async def handle_upload(request: Request):
     except Exception as e:
         logging.error(f"Error processing upload: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
+        
 async def enhanced_scrape_and_analyze_with_verification(url: str, question: str, detection_info: dict, work_folder: str):
     """Enhanced scraping with result verification - keeps trying until same result twice"""
     print("in the 2nd step ")
