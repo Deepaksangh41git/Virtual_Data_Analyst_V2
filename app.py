@@ -370,8 +370,12 @@ async def code_generation_execution_loop(prompt: str, work_folder: str, html_fil
             else:
                 last_error = stderr or "No output generated"
                 print(f"   ❌ Execution Error: {last_error[:100]}...")
-                
-                # Prepare feedback prompt for next attempt
+
+                # 🔍 NEW: try installing missing packages
+                installed, report = install_missing_packages_from_error(last_error)
+                if installed:
+                    print("📦 Missing packages installed, retrying execution...")
+                    continue  # retry same attempt without incrementing prompt
                 current_prompt = f"""
 The previous code failed with this error. Fix the issue and generate working Python code:
 
@@ -834,6 +838,12 @@ Generate the corrected Python code:
                 last_error = stderr or "No output generated"
                 previous_code = generated_code
                 print(f"   ❌ Error: {last_error[:100]}...")
+
+                # 🔍 NEW: try installing missing packages
+                installed, report = install_missing_packages_from_error(last_error)
+                if installed:
+                    print("📦 Missing packages installed, retrying execution...")
+                    continue  # retry execution without changing prompt
                 
         except subprocess.TimeoutExpired:
             last_error = "Code execution timeout (60 seconds)"
@@ -1343,7 +1353,6 @@ Generate the corrected Python code for file analysis:
 
             if result.returncode == 0 and stdout and stdout != "0":
                 print(f"   ✅ File Analysis Round {round_num}, Attempt {attempt} successful")
-                # Return just the clean answer, no wrapper
                 return {
                     "answer": stdout,
                 }
@@ -1351,6 +1360,12 @@ Generate the corrected Python code for file analysis:
                 last_error = stderr or "No valid output generated"
                 previous_code = generated_code
                 print(f"   ❌ Error: {last_error[:100]}...")
+
+                # 🔍 NEW: try installing missing packages
+                installed, report = install_missing_packages_from_error(last_error)
+                if installed:
+                    print("📦 Missing packages installed, retrying execution...")
+                    continue  # retry execution before regenerating code
 
         except subprocess.TimeoutExpired:
             last_error = "Code execution timeout (60 seconds)"
