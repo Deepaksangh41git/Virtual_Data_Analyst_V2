@@ -1644,11 +1644,8 @@ def install_package(package_name: str) -> tuple:
     """
     Install a package using pip
     
-    Args:
-        package_name: Name of the package to install
-        
     Returns:
-        Tuple of (success: bool, message: str)
+        (success: bool, message: str)
     """
     try:
         print(f"📦 Installing package: {package_name}")
@@ -1656,22 +1653,22 @@ def install_package(package_name: str) -> tuple:
             [sys.executable, "-m", "pip", "install", package_name],
             capture_output=True,
             text=True,
-            timeout=300  # 5 minutes timeout
+            timeout=300
         )
-        
+
         if result.returncode == 0:
             print(f"✅ Successfully installed {package_name}")
             return True, f"Successfully installed {package_name}"
         else:
-            error_msg = result.stderr.strip()
-            print(f"❌ Failed to install {package_name}: {error_msg}")
-            return False, f"Failed to install {package_name}: {error_msg}"
+            # 🔴 Print both stdout and stderr for debugging
+            print("⚠️ pip stdout:", result.stdout.strip())
+            print("⚠️ pip stderr:", result.stderr.strip())
+            return False, f"pip failed installing {package_name}: {result.stderr.strip()}"
             
     except subprocess.TimeoutExpired:
         return False, f"Timeout while installing {package_name}"
     except Exception as e:
         return False, f"Exception while installing {package_name}: {str(e)}"
-
 
 def install_missing_packages_from_error(error_text: str) -> tuple:
     """
