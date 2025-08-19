@@ -5,6 +5,7 @@ import uuid
 import json
 import re
 import subprocess
+import sys
 from typing import List
 from fastapi import FastAPI, UploadFile, File, Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -1642,15 +1643,18 @@ def extract_missing_modules_from_error(error_text: str) -> list:
 
 def install_package(package_name: str) -> tuple:
     """
-    Install a package using pip
-    
-    Returns:
-        (success: bool, message: str)
+    Try installing a package with pip.
+    Retries with --upgrade and --no-cache-dir if first attempt fails.
     """
+    import sys, subprocess
+    
+    print(f"📦 Installing package: {package_name}")
+    base_cmd = [sys.executable, "-m", "pip", "install", package_name]
+
     try:
-        print(f"📦 Installing package: {package_name}")
+        # First attempt
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", package_name],
+            base_cmd,
             capture_output=True,
             text=True,
             timeout=300
@@ -1659,17 +1663,29 @@ def install_package(package_name: str) -> tuple:
         if result.returncode == 0:
             print(f"✅ Successfully installed {package_name}")
             return True, f"Successfully installed {package_name}"
+
+        # If failed, retry with upgrade & no-cache-dir
+        print(f"⚠️ First attempt failed. Retrying with --upgrade --no-cache-dir")
+        retry_cmd = base_cmd + ["--upgrade", "--no-cache-dir"]
+        result = subprocess.run(
+            retry_cmd,
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+
+        if result.returncode == 0:
+            print(f"✅ Successfully installed {package_name} (on retry)")
+            return True, f"Successfully installed {package_name} (on retry)"
         else:
-            # 🔴 Print both stdout and stderr for debugging
             print("⚠️ pip stdout:", result.stdout.strip())
             print("⚠️ pip stderr:", result.stderr.strip())
             return False, f"pip failed installing {package_name}: {result.stderr.strip()}"
-            
+
     except subprocess.TimeoutExpired:
         return False, f"Timeout while installing {package_name}"
     except Exception as e:
         return False, f"Exception while installing {package_name}: {str(e)}"
-
 def install_missing_packages_from_error(error_text: str) -> tuple:
     """
     Detect and install any missing Python modules from error messages.
