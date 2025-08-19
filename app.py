@@ -103,73 +103,70 @@ async def handle_upload(request: Request):
         
         print("Questions file read successfully")
         
-        # Continue with your processing logic here...
-        # You can access question_content and saved_files as needed
+        # Analyze the question content
+        detect_prompt = f"""
+        Analyze this question and return a JSON object with these exact keys:
+
+        - "scraping": "yes" or "no"  
+        - "urls": list of URLs found in the question (empty list if none)
+        - "data_type": "table" or "list" or "text"
+        - "target_elements": list of HTML elements to target
+        - "steps": list of steps to solve the question
+
+        Question: {question_content}
         
-        return {"message": "Files uploaded successfully", "request_id": request_id}
+        Return only valid JSON, no other text or formatting.
+        """
+
+        try:
+            detection_result = model.generate_content(detect_prompt)
+            detection_json = extract_json(detection_result.text.strip())
+            print("Detection result:", detection_json)
+        except Exception as e:
+            print(f"Error in detection phase: {e}")
+            return JSONResponse({
+                "error": f"Failed to analyze question: {str(e)}",
+                "question": question_content.strip()
+            })
+
+        # Handle scraping flow
+        if detection_json["scraping"].lower() == "yes" and detection_json.get("urls"):
+            # Check if URLs were detected
+            if not detection_json["urls"]:
+                return JSONResponse({
+                    "error": "Scraping requested but no URLs found in the question",
+                    "question": question_content.strip(),
+                    "detection_result": detection_json
+                })
+            
+            url = detection_json["urls"][0]
+            
+            # Enhanced scraping with better HTML processing
+            scraped_data = await enhanced_scrape_and_analyze_with_verification(
+                url=url,
+                question=question_content,
+                detection_info=detection_json,
+                work_folder=request_folder
+            )
+            
+            return JSONResponse(scraped_data)
+        else:
+            # Handle file-based analysis (CSV, PDF, images, etc.)
+            print("in the else part bro")
+            file_analysis_data = await enhanced_file_analysis_with_verification(
+                question=question_content,
+                detection_info=detection_json,
+                saved_files=saved_files,
+                work_folder=request_folder
+            )
+            
+            return JSONResponse(file_analysis_data)
         
     except HTTPException:
         raise  # Re-raise HTTP exceptions
     except Exception as e:
         logging.error(f"Error processing upload: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")    detect_prompt = f"""
-    Analyze this question and return a JSON object with these exact keys:
-
-    - "scraping": "yes" or "no"  
-    - "urls": list of URLs found in the question (empty list if none)
-    - "data_type": "table" or "list" or "text"
-    - "target_elements": list of HTML elements to target
-    - "steps": list of steps to solve the question
-
-    Question: {question_content}
-    
-    Return only valid JSON, no other text or formatting.
-    """
-
-    try:
-        detection_result = model.generate_content(detect_prompt)
-        detection_json = extract_json(detection_result.text.strip())
-        print("Detection result:", detection_json)
-    except Exception as e:
-        print(f"Error in detection phase: {e}")
-        return JSONResponse({
-            "error": f"Failed to analyze question: {str(e)}",
-            "question": question_content.strip()
-        })
-
-    # Handle scraping flow
-    if detection_json["scraping"].lower() == "yes" and detection_json.get("urls"):
-        # Check if URLs were detected
-        if not detection_json["urls"]:
-            return JSONResponse({
-                "error": "Scraping requested but no URLs found in the question",
-                "question": question_content.strip(),
-                "detection_result": detection_json
-            })
-        
-        url = detection_json["urls"][0]
-        
-        # Enhanced scraping with better HTML processing
-        scraped_data = await enhanced_scrape_and_analyze_with_verification(
-            url=url,
-            question=question_content,
-            detection_info=detection_json,
-            work_folder=request_folder
-        )
-        
-        return JSONResponse(scraped_data)
-    else:
-        # Handle file-based analysis (CSV, PDF, images, etc.)
-        print("in the else part bro")
-        file_analysis_data = await enhanced_file_analysis_with_verification(
-            question=question_content,
-            detection_info=detection_json,
-            saved_files=saved_files,
-            work_folder=request_folder
-        )
-        
-        return JSONResponse(file_analysis_data)
-
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 async def enhanced_scrape_and_analyze_with_verification(url: str, question: str, detection_info: dict, work_folder: str):
     """Enhanced scraping with result verification - keeps trying until same result twice"""
