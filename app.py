@@ -81,7 +81,7 @@ async def handle_upload(request: Request):
                 processed_files.add(filename)  # Mark as processed
                 
                 # Check if this is the questions file
-                if filename.lower() == "questions.txt":
+                if filename.lower() in ["questions.txt", "question.txt"]:
                     has_question_file = True
                     questions_file_path = file_path
                     print(f"Found questions.txt at: {file_path}")
