@@ -297,25 +297,20 @@ Write the complete Python code:
             print(f"❌ Round {round_num + 1} failed: {execution_result.get('error')}")
             continue
         
-        # Success! Return the result immediately
+        # Success! Parse and return the result
         result_answer = execution_result.get("answer", "")
-        generated_code = execution_result.get("code", "")
         
-        print(f"🎉 SUCCESS! Round {round_num + 1} - returning result")
-        # Try to parse as JSON, otherwise return as string
+        print(f"🎉 SUCCESS! Round {round_num + 1} - parsing and returning result")
+        
+        # Try to parse as JSON and return the parsed object directly
         try:
             parsed_result = json.loads(result_answer)
-            return {
-                "result": parsed_result,  # Parsed JSON result
-                "answer": result_answer,  # Raw string version
-            }
+            # Return the parsed JSON object directly, not wrapped in "answer"
+            return parsed_result
         except json.JSONDecodeError:
-            # Not JSON, return as string
-            return {
-                "result": result_answer,  # String result
-                "answer": result_answer,  # Same as result
-            
-            }
+            # If not valid JSON, still try to extract meaningful data
+            print(f"⚠️ Result is not valid JSON, returning as string: {result_answer[:100]}...")
+            return {"result": result_answer}
     
     # If all rounds fail
     return {
@@ -1187,7 +1182,7 @@ async def generate_and_verify_file_results(
     max_attempts: int = 6,
     verification_rounds: int = 5
 ):
-    """Generate and return results for file-based analysis (no tolerance checks, no multi-round validation)"""
+    """Generate and return results for file-based analysis"""
 
     print(f"\n🔍 Starting simplified file analysis process...")
 
@@ -1248,17 +1243,23 @@ Write the complete Python code to solve this question:
             round_num=round_num + 1
         )
 
-        # If execution succeeded and output is valid → return immediately
+        # If execution succeeded and output is valid → parse and return
         if not round_result.get("error"):
             result_answer = round_result.get("answer", "").strip()
             if result_answer and result_answer != "0":
-                print(f"✅ Round {round_num + 1} successful, returning result")
-                return {
-                    "answer": result_answer,
-                }
+                print(f"✅ Round {round_num + 1} successful, parsing and returning result")
+                
+                # Try to parse as JSON and return the parsed object directly
+                try:
+                    parsed_result = json.loads(result_answer)
+                    # Return the parsed JSON object directly, not wrapped in "answer"
+                    return parsed_result
+                except json.JSONDecodeError:
+                    # If not valid JSON, still return meaningful data
+                    print(f"⚠️ Result is not valid JSON, returning as result field: {result_answer[:100]}...")
+                    return {"result": result_answer}
             else:
                 print(f"⚠️ Round {round_num + 1} produced invalid output (empty/null/0), retrying...")
-
         else:
             print(f"❌ Round {round_num + 1} failed: {round_result.get('error', 'Unknown error')}")
 
@@ -1279,7 +1280,7 @@ async def generate_and_execute_file_code_single_attempt(
     max_attempts: int,
     round_num: int
 ):
-    """Single attempt at generating and executing file analysis code (no tolerance validation)"""
+    """Single attempt at generating and executing file analysis code"""
 
     attempt = 0
     last_error = None
@@ -1338,6 +1339,7 @@ Generate the corrected Python code for file analysis:
 
             if result.returncode == 0 and stdout and stdout != "0":
                 print(f"   ✅ File Analysis Round {round_num}, Attempt {attempt} successful")
+                # Return just the clean answer, no wrapper
                 return {
                     "answer": stdout,
                 }
@@ -1545,5 +1547,159 @@ def is_value_meaningful(value) -> bool:
         return len(value) > 0
     
     return True
+
+def get_package_name_mapping() -> dict:
+    """
+    Map import names to pip package names (since they're sometimes different)
+    
+    Returns:
+        Dictionary mapping import names to pip package names
+    """
+    return {
+        'cv2': 'opencv-python',
+        'PIL': 'Pillow',
+        'sklearn': 'scikit-learn',
+        'skimage': 'scikit-image',
+        'bs4': 'beautifulsoup4',
+        'requests': 'requests',
+        'numpy': 'numpy',
+        'pandas': 'pandas',
+        'matplotlib': 'matplotlib',
+        'seaborn': 'seaborn',
+        'plotly': 'plotly',
+        'scipy': 'scipy',
+        'openpyxl': 'openpyxl',
+        'xlrd': 'xlrd',
+        'PyPDF2': 'PyPDF2',
+        'pdfplumber': 'pdfplumber',
+        'pytesseract': 'pytesseract',
+        'pdf2image': 'pdf2image',
+        'wordcloud': 'wordcloud',
+        'textstat': 'textstat',
+        'nltk': 'nltk',
+        'spacy': 'spacy',
+        'transformers': 'transformers',
+        'torch': 'torch',
+        'tensorflow': 'tensorflow',
+        'keras': 'keras',
+        'xgboost': 'xgboost',
+        'lightgbm': 'lightgbm',
+        'catboost': 'catboost',
+        'statsmodels': 'statsmodels',
+        # Add more mappings as needed
+    }
+
+
+def extract_missing_modules_from_error(error_text: str) -> list:
+    """
+    Extract missing module names from Python error messages
+    
+    Args:
+        error_text: The stderr output from failed Python execution
+        
+    Returns:
+        List of missing module names
+    """
+    missing_modules = []
+    
+    # Common error patterns for missing modules
+    patterns = [
+        r"ModuleNotFoundError: No module named ['\"]([^'\"]+)['\"]",
+        r"ImportError: No module named ['\"]([^'\"]+)['\"]", 
+        r"ImportError: cannot import name ['\"][^'\"]+['\"] from ['\"]([^'\"]+)['\"]",
+        r"from ([a-zA-Z_][a-zA-Z0-9_]*) import.*ModuleNotFoundError",
+        r"import ([a-zA-Z_][a-zA-Z0-9_]*).*ModuleNotFoundError"
+    ]
+    
+    for pattern in patterns:
+        matches = re.findall(pattern, error_text)
+        for match in matches:
+            # Get the base module name (before any dots)
+            base_module = match.split('.')[0]
+            missing_modules.append(base_module)
+    
+    return list(set(missing_modules))  # Remove duplicates
+
+
+def install_package(package_name: str) -> tuple:
+    """
+    Install a package using pip
+    
+    Args:
+        package_name: Name of the package to install
+        
+    Returns:
+        Tuple of (success: bool, message: str)
+    """
+    try:
+        print(f"📦 Installing package: {package_name}")
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", package_name],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minutes timeout
+        )
+        
+        if result.returncode == 0:
+            print(f"✅ Successfully installed {package_name}")
+            return True, f"Successfully installed {package_name}"
+        else:
+            error_msg = result.stderr.strip()
+            print(f"❌ Failed to install {package_name}: {error_msg}")
+            return False, f"Failed to install {package_name}: {error_msg}"
+            
+    except subprocess.TimeoutExpired:
+        return False, f"Timeout while installing {package_name}"
+    except Exception as e:
+        return False, f"Exception while installing {package_name}: {str(e)}"
+
+
+def install_missing_packages_from_error(error_text: str) -> tuple:
+    """
+    Install packages that are missing based on error messages
+    
+    Args:
+        error_text: The stderr from failed code execution
+        
+    Returns:
+        Tuple of (any_installed: bool, installation_report: dict)
+    """
+    missing_modules = extract_missing_modules_from_error(error_text)
+    
+    if not missing_modules:
+        return False, {"message": "No missing modules detected in error"}
+    
+    package_mapping = get_package_name_mapping()
+    installation_report = {
+        "missing_modules_detected": missing_modules,
+        "successfully_installed": [],
+        "failed_to_install": [],
+        "installation_errors": []
+    }
+    
+    print(f"🔍 Detected missing modules from error: {missing_modules}")
+    
+    any_installed = False
+    
+    for module_name in missing_modules:
+        # Get the pip package name
+        package_name = package_mapping.get(module_name, module_name)
+        
+        # Try to install the package
+        success, message = install_package(package_name)
+        
+        if success:
+            installation_report["successfully_installed"].append(module_name)
+            any_installed = True
+        else:
+            installation_report["failed_to_install"].append(module_name)
+            installation_report["installation_errors"].append(f"{module_name} ({package_name}): {message}")
+    
+    print(f"📊 Installation Summary:")
+    print(f"   Successfully installed: {installation_report['successfully_installed']}")
+    print(f"   Failed to install: {installation_report['failed_to_install']}")
+    
+    return any_installed, installation_report
+    
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
