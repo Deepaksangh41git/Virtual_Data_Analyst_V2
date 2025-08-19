@@ -39,44 +39,59 @@ logging.basicConfig(level=logging.INFO)
 
 @app.post("/api/")
 async def handle_upload(request: Request):
-    # Create unique folder for this request
-    request_id = str(uuid.uuid4())
-    request_folder = os.path.join(UPLOAD_DIR, request_id)
-    os.makedirs(request_folder, exist_ok=True)
-
-    saved_files = {}
-    questions_file_path = None
-    has_question_file = False
-
-    # Read the multipart form
-    form = await request.form()
-
-    # Loop through everything user sent
-    for key, val in form.items():
-        if hasattr(val, "filename") and val.filename:  # It's a file
-            filename = val.filename
-            file_path = os.path.join(request_folder, filename)
-
-            # Save file to disk
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(val.file, buffer)
-
-            logging.info(f"Saved file: {filename} -> {file_path}")
-            saved_files[filename] = file_path
-
-            # Identify questions file
-            if filename.lower().endswith(".txt") and filename.lower() == "questions.txt":
-                has_question_file = True
-                questions_file_path = file_path
-
-    if not has_question_file:
-        raise HTTPException(status_code=400, detail="Missing required file: questions.txt")
-
-    # Read question content
-    with open(questions_file_path, "r") as f:
-        question_content = f.read()
-    print("Questions file read successfully")
-    # Improved detection prompt with simpler structure
+    try:
+        # Get form data from request
+        form = await request.form()
+        
+        # Create a unique request folder inside /tmp
+        request_id = str(uuid.uuid4())
+        request_folder = os.path.join(UPLOAD_DIR, request_id)
+        os.makedirs(request_folder, exist_ok=True)
+        
+        saved_files = {}
+        has_question_file = False
+        questions_file_path = None
+        
+        # Process each item in the form
+        for key, val in form.items():
+            # Check if it's a file upload
+            if hasattr(val, "filename") and val.filename:
+                filename = val.filename
+                file_path = os.path.join(request_folder, filename)
+                
+                # Read file content and save to disk
+                content = await val.read()
+                with open(file_path, "wb") as buffer:
+                    buffer.write(content)
+                
+                logging.info(f"Saved file: {filename} -> {file_path}")
+                saved_files[filename] = file_path
+                
+                # Check if this is the questions file
+                if filename.lower() == "questions.txt":
+                    has_question_file = True
+                    questions_file_path = file_path
+        
+        # Validate that questions.txt was uploaded
+        if not has_question_file:
+            raise HTTPException(status_code=400, detail="Missing required file: questions.txt")
+        
+        # Read content of questions.txt
+        with open(questions_file_path, "r") as f:
+            question_content = f.read()
+        
+        print("Questions file read successfully")
+        
+        # Continue with your processing logic here...
+        # You can access question_content and saved_files as needed
+        
+        return {"message": "Files uploaded successfully", "request_id": request_id}
+        
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except Exception as e:
+        logging.error(f"Error processing upload: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")    # Improved detection prompt with simpler structure
     detect_prompt = f"""
     Analyze this question and return a JSON object with these exact keys:
 
