@@ -1675,20 +1675,17 @@ def install_package(package_name: str) -> tuple:
 
 def install_missing_packages_from_error(error_text: str) -> tuple:
     """
-    Install packages that are missing based on error messages
+    Detect and install any missing Python modules from error messages.
+    Universal: tries to install the module name directly via pip.
     
-    Args:
-        error_text: The stderr from failed code execution
-        
     Returns:
-        Tuple of (any_installed: bool, installation_report: dict)
+        Tuple (any_installed: bool, installation_report: dict)
     """
     missing_modules = extract_missing_modules_from_error(error_text)
     
     if not missing_modules:
         return False, {"message": "No missing modules detected in error"}
     
-    package_mapping = get_package_name_mapping()
     installation_report = {
         "missing_modules_detected": missing_modules,
         "successfully_installed": [],
@@ -1701,18 +1698,32 @@ def install_missing_packages_from_error(error_text: str) -> tuple:
     any_installed = False
     
     for module_name in missing_modules:
-        # Get the pip package name
-        package_name = package_mapping.get(module_name, module_name)
-        
-        # Try to install the package
+        # First try installing with module name directly
+        package_name = module_name
         success, message = install_package(package_name)
         
         if success:
             installation_report["successfully_installed"].append(module_name)
             any_installed = True
         else:
-            installation_report["failed_to_install"].append(module_name)
-            installation_report["installation_errors"].append(f"{module_name} ({package_name}): {message}")
+            # Fallback: if dotted module (like sklearn.tree), try root package
+            root_pkg = module_name.split(".")[0]
+            if root_pkg != module_name:
+                print(f"🔄 Retrying with root package name: {root_pkg}")
+                success, message = install_package(root_pkg)
+                if success:
+                    installation_report["successfully_installed"].append(root_pkg)
+                    any_installed = True
+                else:
+                    installation_report["failed_to_install"].append(module_name)
+                    installation_report["installation_errors"].append(
+                        f"{module_name}: {message}"
+                    )
+            else:
+                installation_report["failed_to_install"].append(module_name)
+                installation_report["installation_errors"].append(
+                    f"{module_name}: {message}"
+                )
     
     print(f"📊 Installation Summary:")
     print(f"   Successfully installed: {installation_report['successfully_installed']}")
