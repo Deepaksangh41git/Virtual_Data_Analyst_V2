@@ -276,7 +276,7 @@ CRITICAL RULES:
 - For numerical results, use sufficient precision but don't over-specify
 - Don't give null or empty answers better to give the error dont use exceptional handling
 - I want final output as json and dont give array or list as output give only json like this: 
-    {{"question 1" : "answer 1 ","question 2 " : "answer 2 "}} 
+    {{"question 1 which user asked" : "answer of question 1 ","question 2 which user asked " : "answer of question 2 "}} 
 Write the complete Python code:
 """
 
@@ -1237,7 +1237,7 @@ CRITICAL RULES:
 - Handle different file types appropriately
 - For statistical calculations, use sufficient precision
 -- I want final output as json and dont give array or list as output give only json like this: 
-    {{"question 1" : "answer 1 ","question 2 " : "answer 2 "}} 
+    {{"question 1 which user asked" : "answer of question 1 ","question 2 which user asked " : "answer of question 2 "}} 
 
 Write the complete Python code to solve this question:
 """,
