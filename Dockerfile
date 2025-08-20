@@ -31,6 +31,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxdamage1 \
     libgbm1 \
     libasound2 \
+    libxkbcommon0 \       
+    libxfixes3 \          
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
