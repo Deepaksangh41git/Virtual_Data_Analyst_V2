@@ -38,8 +38,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers (Chromium only to keep it lightweight)
-RUN python -m playwright install --with-deps chromium
+# Install Playwright Chromium browser (skip --with-deps to avoid missing fonts)
+RUN python -m playwright install chromium
 
 COPY . .
 
